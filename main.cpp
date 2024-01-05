@@ -4,6 +4,7 @@
 #include <cstring>
 #include <string>
 #include <map>
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -588,15 +589,139 @@ void init()
     //initVBO();
 }
 
+
+void bunnyRotateX(){
+	float angleRad = (float)(bunnyRotationAngle / 180.0) * M_PI;
+	cout << angleRad << endl;
+
+	glm::mat4 matR = glm::rotate<float>(glm::mat4(1.0), (-180. / 180.) * M_PI, glm::vec3(0.0, 1.0, 0.0));
+	glm::mat4 matRz = glm::rotate(glm::mat4(1.0), angleRad, glm::vec3(0.0, 1.0, 0.0));
+
+	glm::mat4 modelingMatrix = matRz * matR;
+	meshMap["bunny"][0].modelingMatrix *= modelingMatrix;
+
+}
+
+void resetGame(){
+	// reset bunny position
+	bunnyZCoord = -1.8f;
+	bunnyForwardSpeed = -0.03f; // The bunny's forward speed
+	bunnyYCoord = -1.3f; // The bunny's Y coordinate
+	bunnyXCoord = 0.0f; // The bunny's X coordinate
+	hopHeight = 0.01f; // Maximum height of the bunny's hop
+	direction = 1; // 1 for up and -1 for down
+	bunnyReplacement = 0.0f; // The bunny's replacement value
+
+	// reset camera position
+	cameraZPosition = 0.0f; // The camera's Z position
+
+	// reset cube positions
+	for (int i = 0; i < 3; i++) {
+		cubeXPositions[i] = initialCubeXPositions[i];
+	}
+
+	meshMap = initialMeshMap;
+}
+
+void drawPlatform(){
+	vector<Mesh> quads = meshMap["platform"];
+	int numElementsToRemove = 25;
+	for (int i = 0; i < numElementsToRemove; i++){
+		// update modeling matrix to move by 0.3 in Z at every call
+		int zCoord = quads[i].zCoordinate;
+		int xCoord = quads[i].xCoordinate;
+
+		float newZCoord = zCoord - (quads.size() / 25) * 0.3f - 0.3f;
+		glm::mat4 qmatT = glm::translate(glm::mat4(1.0), glm::vec3(xCoord, -1.5f, newZCoord));
+		quads[i].modelingMatrix = qmatT;
+
+		quads[i].zCoordinate = newZCoord;
+	}
+	std::rotate(quads.begin(), quads.begin() + numElementsToRemove, quads.end());
+	meshMap["platform"] = quads;
+	
+}
+
+void drawBunny(){
+	Mesh bunny = meshMap["bunny"].back();
+
+	meshMap["bunny"].pop_back();
+	float rotationAngle = -90.0f;
+	// update the modeling matrix to move by 0.01 in Z at every call
+	glm::mat4 bmatT = glm::translate(glm::mat4(1.0), glm::vec3(bunnyXCoord, bunnyYCoord, bunnyZCoord));
+	glm::mat4 bmatS = glm::scale(glm::mat4(1.0), glm::vec3(0.3, 0.3, 0.3));
+	glm::mat4 rotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(rotationAngle), glm::vec3(0.0f, 1.0f, 0.0f)); // Rotate to face the
+	bunny.modelingMatrix =  bmatT * rotationMatrix * bmatS;
+	bunnyZCoord += bunnyForwardSpeed;
+	bunnyReplacement += -bunnyForwardSpeed;
+	// update y coord to give a hopping animation
+	if (bunnyYCoord > -1.0f + hopHeight) {
+        direction = -1; // Start moving down
+    } else if (bunnyYCoord < -1.3f) {
+        direction = 1; // Start moving up
+        bunnyYCoord = -1.3f; // Reset to ground level to avoid sinking below the ground
+    }
+	if (direction == -1){
+		bunnyYCoord += bunnyForwardSpeed;
+	}else if (direction == 1){
+		bunnyYCoord -= bunnyForwardSpeed;
+	}
+	
+	glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, cameraZPosition);
+	glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f); 
+	glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);    
+	glm::mat4 viewingMatrix = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+
+	bunny.viewingMatrix = viewingMatrix;
+	cameraZPosition += bunnyForwardSpeed;
+	meshMap["bunny"].push_back(bunny);
+}
+
+void drawCubes(){
+	glm::mat4 scaleMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(0.3, 0.8, 0.3));
+	for (int i = 0; i < 3; i++){
+		glm::mat4 modelingMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(cubeXPositions[i], -1.0, cubeZPosition)) * scaleMatrix;
+		meshMap["cube"][i].modelingMatrix = modelingMatrix;
+		meshMap["cube"][i].color = colorArray[i];
+	}	
+}
+
+void checkCollision(){
+	// check if bunny is collided with a cube
+	for (int i = 0; i < 3; i++) {
+		float xPosDiff = cubeXPositions[i] - bunnyXCoord;
+		float zPosDiff = bunnyZCoord - cubeZPosition;
+		if (xPosDiff <= 0.25f && xPosDiff >= -0.25f  && zPosDiff < 0.8f && zPosDiff > -0.8f) {
+			if (colorArray[i] == 0){
+				// red collision
+				// if collided, rotate bunny sideways
+				float rotationAngle = -90.0f;
+				meshMap["bunny"][0].modelingMatrix = glm::rotate(meshMap["bunny"][0].modelingMatrix, glm::radians(rotationAngle), glm::vec3(1.0f, 0.0f, 0.0f));
+				bunnyForwardSpeed = 0;
+				// move collided object so the user wont see it
+				meshMap["cube"][i].modelingMatrix = glm::translate(meshMap["cube"][i].modelingMatrix, glm::vec3(0.0f, 0.0f, 100.0f));	 
+		
+				return;
+			}else{
+				// yellow collision
+				cubeZPosition -= 16.4;
+				randomizeColor = true;
+				// bunny should rotate 360 in x axis
+				shouldRotate = true;
+				bunnyForwardSpeed -= 0.01;
+
+			}
+
+		}else if (zPosDiff < -0.8f){
+			cubeZPosition -= 16.4;
+			randomizeColor = true;
+		}
+	}
+}
+
 void drawModel()
 {
-	glBindBuffer(GL_ARRAY_BUFFER, gVertexAttribBuffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIndexBuffer);
-
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(gVertexDataSizeInBytes));
-
-	glDrawElements(GL_TRIANGLES, gFaces.size() * 3, GL_UNSIGNED_INT, 0);
+	
 }
 
 void renderText(const std::string& text, GLfloat x, GLfloat y, GLfloat scale, glm::vec3 color)
