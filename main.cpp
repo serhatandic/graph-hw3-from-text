@@ -21,7 +21,7 @@
 
 using namespace std;
 
-GLuint gProgram[3];
+GLuint gProgram[4];
 GLint gIntensityLoc;
 float gIntensity = 1000;
 int gWidth = 640, gHeight = 480;
@@ -297,18 +297,22 @@ void createFS(GLuint& program, const string& filename)
 
 void initShaders()
 {
-    gProgram[0] = glCreateProgram();
-    gProgram[1] = glCreateProgram();
-    gProgram[2] = glCreateProgram();
+    gProgram[0] = glCreateProgram(); // platform
+    gProgram[1] = glCreateProgram(); // bunny
+    gProgram[2] = glCreateProgram(); // text
+    gProgram[3] = glCreateProgram(); // cube
 
-    createVS(gProgram[0], "vert0.glsl");
-    createFS(gProgram[0], "frag0.glsl");
+    createVS(gProgram[0], "platform_v.glsl");
+    createFS(gProgram[0], "platform_f.glsl");
 
-    createVS(gProgram[1], "vert1.glsl");
-    createFS(gProgram[1], "frag1.glsl");
+    createVS(gProgram[1], "bunny_v.glsl");
+    createFS(gProgram[1], "bunny_f.glsl");
 
     createVS(gProgram[2], "vert_text.glsl");
     createFS(gProgram[2], "frag_text.glsl");
+
+    createVS(gProgram[3], "cube_v.glsl");    
+    createFS(gProgram[3], "cube_f.glsl");
 
     glBindAttribLocation(gProgram[0], 0, "inVertex");
     glBindAttribLocation(gProgram[0], 1, "inNormal");
@@ -319,6 +323,7 @@ void initShaders()
     glLinkProgram(gProgram[0]);
     glLinkProgram(gProgram[1]);
     glLinkProgram(gProgram[2]);
+    glLinkProgram(gProgram[3]);
     glUseProgram(gProgram[0]);
 
     gIntensityLoc = glGetUniformLocation(gProgram[0], "intensity");
