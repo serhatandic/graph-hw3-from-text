@@ -23,6 +23,7 @@
 using namespace std;
 
 int activeProgramIndex = 2;
+glm::vec3 scoreTextColor = glm::vec3(1.0f, 1.0f, 0.0f);
 
 GLuint gProgram[4];
 GLint gIntensityLoc;
@@ -42,13 +43,13 @@ glm::vec3 eyePos(0, 0, 0);
 // cube globals
 float cubeXPositions[] = { -2.3f, 0.0f, 2.3f };
 float initialCubeXPositions[] = { -2.f, 0.0f, 2.f };
-float cubeZPosition = -16.4f; // The cube's Z position
+float cubeZPosition = -25.f; // The cube's Z position
 int colorArray[] = { 0, 1, 0 }; // 0 for red and 1 for yellow
 float cubeDepth = 0.55f; // The cube's depth
 
 // bunny globals
 float bunnyZCoord = -1.8f;
-float bunnyForwardSpeed = -0.05f; // The bunny's forward speed
+float bunnyForwardSpeed = -0.1f; // The bunny's forward speed
 float bunnyYCoord = -1.3f; // The bunny's Y coordinate
 float bunnyXCoord = 0.0f; // The bunny's X coordinate
 float hopHeight = 0.01f; // Maximum height of the bunny's hop
@@ -351,7 +352,6 @@ void initShaders()
     glUseProgram(gProgram[0]);
 
     gIntensityLoc = glGetUniformLocation(gProgram[0], "intensity");
-    cout << "gIntensityLoc = " << gIntensityLoc << endl;
     glUniform1f(gIntensityLoc, gIntensity);
 
     for (int i = 0; i < 4; ++i)
@@ -370,7 +370,6 @@ VBOData initVBO(const MeshData& mesh) {
     glGenVertexArrays(1, &vboData.vao);
     assert(vboData.vao > 0);
     glBindVertexArray(vboData.vao);
-    cout << "vao = " << vboData.vao << endl;
 
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
@@ -602,12 +601,10 @@ void init()
 
 void bunnyRotateX(){
 	float angleRad = (float)(bunnyRotationAngle / 180.0) * M_PI;
-	cout << angleRad << endl;
 
-	glm::mat4 matR = glm::rotate<float>(glm::mat4(1.0), (-180. / 180.) * M_PI, glm::vec3(0.0, 1.0, 0.0));
 	glm::mat4 matRz = glm::rotate(glm::mat4(1.0), angleRad, glm::vec3(0.0, 1.0, 0.0));
 
-	glm::mat4 modelingMatrix = matRz * matR;
+	glm::mat4 modelingMatrix = matRz;
 	meshMap["bunny"][0].modelingMatrix *= modelingMatrix;
 
 }
@@ -615,7 +612,7 @@ void bunnyRotateX(){
 void resetGame(){
 	// reset bunny position
 	bunnyZCoord = -1.8f;
-	bunnyForwardSpeed = -0.03f; // The bunny's forward speed
+	bunnyForwardSpeed = -0.1f; // The bunny's forward speed
 	bunnyYCoord = -1.3f; // The bunny's Y coordinate
 	bunnyXCoord = 0.0f; // The bunny's X coordinate
 	hopHeight = 0.01f; // Maximum height of the bunny's hop
@@ -629,8 +626,11 @@ void resetGame(){
 	for (int i = 0; i < 3; i++) {
 		cubeXPositions[i] = initialCubeXPositions[i];
 	}
-
+    cubeZPosition = -25.f;
 	meshMap = initialMeshMap;
+    randomizeColor = true;
+    scoreTextColor = glm::vec3(1.0f, 1.0f, 0.0f);
+    score = 0;
 }
 
 void drawPlatform(){
@@ -672,9 +672,9 @@ void drawBunny(){
         bunnyYCoord = -1.3f; // Reset to ground level to avoid sinking below the ground
     }
 	if (direction == -1){
-		bunnyYCoord += bunnyForwardSpeed;
+		bunnyYCoord += bunnyForwardSpeed * 0.4;
 	}else if (direction == 1){
-		bunnyYCoord -= bunnyForwardSpeed;
+		bunnyYCoord -= bunnyForwardSpeed * 0.4;
 	}
 	
 	glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, cameraZPosition);
@@ -710,16 +710,17 @@ void checkCollision(){
 				bunnyForwardSpeed = 0;
 				// move collided object so the user wont see it
 				meshMap["cube"][i].modelingMatrix = glm::translate(meshMap["cube"][i].modelingMatrix, glm::vec3(0.0f, 0.0f, 100.0f));	 
-		
+                bunnyFainted = true;
+                scoreTextColor = glm::vec3(1.0f, 0.0f, 0.0f);
 				return;
 			}else{
 				// yellow collision
-				cubeZPosition -= 16.4;
+				cubeZPosition -= 25.f;
 				randomizeColor = true;
 				// bunny should rotate 360 in x axis
 				shouldRotate = true;
 				bunnyForwardSpeed -= 0.01;
-
+                score += 1000;
 			}
 
 		}else if (zPosDiff < -0.8f){
@@ -780,15 +781,14 @@ void drawModel()
 		glUniformMatrix4fv(modelingMatrixLoc[activeProgramIndex], 1, GL_FALSE, glm::value_ptr(modelingMatrix));
 		glUniform3fv(eyePosLoc[activeProgramIndex], 1, glm::value_ptr(eyePos));
 
-		GLint objectColorLocation = glGetUniformLocation(gProgram[2], "objectColor");
-		glm::vec3 redColor = glm::vec3(1.0f, 0.0f, 0.0f); // RGB for red
-		glm::vec3 yellowColor = glm::vec3(1.0f, 1.0f, 0.0f); // RGB for yellow
+        GLint checkpointTypeLocation = glGetUniformLocation(gProgram[3], "checkpointType");
 
-		if (mesh.color == 0){
-			glUniform3fv(objectColorLocation, 1, glm::value_ptr(redColor));
-		}else if (mesh.color == 1){
-			glUniform3fv(objectColorLocation, 1, glm::value_ptr(yellowColor));
-		}
+        // Assuming 'mesh.color' is an integer where 0 represents red and 1 represents yellow
+        if (mesh.color == 0) {
+            glUniform1i(checkpointTypeLocation, 0); // Set to 0 for red
+        } else if (mesh.color == 1) {
+            glUniform1i(checkpointTypeLocation, 1); // Set to 1 for yellow
+        }
 
 		glBindVertexArray(mesh.vboData.vao);
 		glDrawElements(GL_TRIANGLES, mesh.vboData.indexCount, GL_UNSIGNED_INT, 0);	
@@ -826,6 +826,8 @@ void renderText(const std::string& text, GLfloat x, GLfloat y, GLfloat scale, gl
     glUseProgram(gProgram[2]);
     glUniform3f(glGetUniformLocation(gProgram[2], "textColor"), color.x, color.y, color.z);
     glActiveTexture(GL_TEXTURE0);
+    glm::mat4 projection = glm::ortho(0.0f, static_cast<GLfloat>(gWidth), 0.0f, static_cast<GLfloat>(gHeight));
+    glUniformMatrix4fv(glGetUniformLocation(gProgram[2], "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
     // Iterate through all characters
     std::string::const_iterator c;
@@ -878,8 +880,21 @@ void display()
     glClearStencil(0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
+    glUseProgram(gProgram[0]);
+	float scaleValue = 0.5f; // Example scale value, adjust as needed
+	float offsetValue = 6.0f; // Example offset value, adjust as needed
+    
+	GLint scaleLocation = glGetUniformLocation(gProgram[0], "scale");
+	GLint offsetLocation = glGetUniformLocation(gProgram[0], "offset");
+	// Set the scale
+	glUniform1f(scaleLocation, scaleValue);
+
+	// Set the offset
+	glUniform1f(offsetLocation, offsetValue);
+
+
     std::string scoreText = "Score: " + std::to_string(score);
-    renderText(scoreText.c_str(), 0, gHeight- 20, 0.5, glm::vec3(0, 1, 1));
+    renderText(scoreText.c_str(), 0, gHeight - 20, 0.5, scoreTextColor);
     drawModel();
     drawModel();
 	drawBunny();
@@ -888,20 +903,22 @@ void display()
 	}
 	randomizeColor = false;
 
-	if (bunnyReplacement > 0.22){
+	if (meshMap["platform"][0].zCoordinate - bunnyZCoord > 3){
 		drawPlatform();
-		bunnyReplacement = 0;
 	}
 	drawCubes();
 	checkCollision();
 	if (shouldRotate){
 		bunnyRotateX();
-		bunnyRotationAngle += 10.9;
+		bunnyRotationAngle += -bunnyForwardSpeed * 50;
 	}
 	if (bunnyRotationAngle > 360){
 		bunnyRotationAngle = 0;
 		shouldRotate = false;
 	}
+    if (!bunnyFainted){
+        score += ceil(bunnyReplacement / 1000);
+    }
     assert(glGetError() == GL_NO_ERROR);
 
 }
@@ -919,36 +936,27 @@ void reshape(GLFWwindow* window, int w, int h)
 
 void keyboard(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-    {
-        glfwSetWindowShouldClose(window, GL_TRUE);
-    }
-    else if (key == GLFW_KEY_F && action == GLFW_PRESS)
-    {
-        cout << "F pressed" << endl;
-        glUseProgram(gProgram[1]);
-    }
-    else if (key == GLFW_KEY_V && action == GLFW_PRESS)
-    {
-        cout << "V pressed" << endl;
-        glUseProgram(gProgram[0]);
-    }
-    else if (key == GLFW_KEY_D && action == GLFW_PRESS)
-    {
-        cout << "D pressed" << endl;
-        gIntensity /= 1.5;
-        cout << "gIntensity = " << gIntensity << endl;
-        glUseProgram(gProgram[0]);
-        glUniform1f(gIntensityLoc, gIntensity);
-    }
-    else if (key == GLFW_KEY_B && action == GLFW_PRESS)
-    {
-        cout << "B pressed" << endl;
-        gIntensity *= 1.5;
-        cout << "gIntensity = " << gIntensity << endl;
-        glUseProgram(gProgram[0]);
-        glUniform1f(gIntensityLoc, gIntensity);
-    }
+	if (key == GLFW_KEY_Q && action == GLFW_PRESS)
+	{
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
+	}
+	else if (key == GLFW_KEY_D && (action == GLFW_PRESS || action == GLFW_REPEAT) && bunnyXCoord < 2.5f && !bunnyFainted){
+		bunnyXCoord += 0.3f;
+	}
+	else if (key == GLFW_KEY_A && (action == GLFW_PRESS || action == GLFW_REPEAT) && bunnyXCoord > -2.5f && !bunnyFainted){
+		bunnyXCoord -= 0.3f;
+	}
+	else if (key == GLFW_KEY_W && action == GLFW_PRESS)
+	{
+		bunnyForwardSpeed -= 0.01;
+	}
+	else if (key == GLFW_KEY_E && action == GLFW_PRESS){
+		bunnyForwardSpeed += 0.01;
+	}else if (key == GLFW_KEY_R && action == GLFW_PRESS){
+		resetGame();
+        bunnyFainted = false;
+	}
+
 }
 
 void mainLoop(GLFWwindow* window)
