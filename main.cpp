@@ -27,8 +27,8 @@ int activeProgramIndex = 2;
 GLuint gProgram[4];
 GLint gIntensityLoc;
 float gIntensity = 1000;
-int gWidth = 640, gHeight = 480;
-
+int gWidth = 1000, gHeight = 800;
+int score = 0;
 GLint modelingMatrixLoc[4];
 GLint viewingMatrixLoc[4];
 GLint projectionMatrixLoc[4];
@@ -878,9 +878,30 @@ void display()
     glClearStencil(0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-
-    renderText("CENG 477 - 2022", 0, 0, 1, glm::vec3(0, 1, 1));
+    std::string scoreText = "Score: " + std::to_string(score);
+    renderText(scoreText.c_str(), 0, gHeight- 20, 0.5, glm::vec3(0, 1, 1));
     drawModel();
+    drawModel();
+	drawBunny();
+	if (randomizeColor){
+		std::random_shuffle(&colorArray[0], &colorArray[3]);
+	}
+	randomizeColor = false;
+
+	if (bunnyReplacement > 0.22){
+		drawPlatform();
+		bunnyReplacement = 0;
+	}
+	drawCubes();
+	checkCollision();
+	if (shouldRotate){
+		bunnyRotateX();
+		bunnyRotationAngle += 10.9;
+	}
+	if (bunnyRotationAngle > 360){
+		bunnyRotationAngle = 0;
+		shouldRotate = false;
+	}
     assert(glGetError() == GL_NO_ERROR);
 
 }
