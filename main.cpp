@@ -26,6 +26,37 @@ GLint gIntensityLoc;
 float gIntensity = 1000;
 int gWidth = 640, gHeight = 480;
 
+GLint modelingMatrixLoc[4];
+GLint viewingMatrixLoc[4];
+GLint projectionMatrixLoc[4];
+GLint eyePosLoc[4];
+
+glm::mat4 projectionMatrix;
+glm::mat4 viewingMatrix;
+glm::mat4 modelingMatrix;
+glm::vec3 eyePos(0, 0, 0);
+
+// cube globals
+float cubeXPositions[] = { -2.3f, 0.0f, 2.3f };
+float initialCubeXPositions[] = { -2.f, 0.0f, 2.f };
+float cubeZPosition = -16.4f; // The cube's Z position
+int colorArray[] = { 0, 1, 0 }; // 0 for red and 1 for yellow
+float cubeDepth = 0.55f; // The cube's depth
+
+// bunny globals
+float bunnyZCoord = -1.8f;
+float bunnyForwardSpeed = -0.05f; // The bunny's forward speed
+float bunnyYCoord = -1.3f; // The bunny's Y coordinate
+float bunnyXCoord = 0.0f; // The bunny's X coordinate
+float hopHeight = 0.01f; // Maximum height of the bunny's hop
+float direction = 1; // 1 for up and -1 for down
+float bunnyReplacement = 0.0f; // The bunny's replacement value
+static float bunnyRotationAngle = 0;
+bool shouldRotate = false;
+bool bunnyFainted = false;
+
+float cameraZPosition = 0.0f; // The camera's Z position
+bool randomizeColor = false;
 struct Vertex
 {
     Vertex(GLfloat inX, GLfloat inY, GLfloat inZ) : x(inX), y(inY), z(inZ) { }
@@ -60,6 +91,35 @@ struct Face
     GLuint vIndex[3], tIndex[3], nIndex[3];
 };
 
+struct MeshData {
+    vector<Vertex> vertices;
+    vector<Normal> normals;
+    vector<Face> faces;
+	vector<Texture> textures;
+	int index;
+	int bufferId;
+};
+
+struct VBOData {
+    GLuint vao;
+    GLuint vertexBuffer;
+    GLuint indexBuffer;
+	size_t indexCount;
+};
+
+struct Mesh {
+	VBOData vboData;
+	// set each to none
+	glm::mat4 modelingMatrix = glm::mat4(1.0f); 
+	glm::mat4 viewingMatrix = glm::mat4(1.0f); 
+	glm::mat4 projectionMatrix = glm::mat4(1.0f); 
+	glm::vec3 eyePos = glm::vec3(0.0f); // Zero vector
+	int color = -1;
+	int zCoordinate;
+	int xCoordinate;
+    GLuint shaderProgramIndex; // Index of the shader program for this mesh
+};
+
 vector<Vertex> gVertices;
 vector<Texture> gTextures;
 vector<Normal> gNormals;
@@ -78,68 +138,66 @@ struct Character {
 };
 
 std::map<GLchar, Character> Characters;
+vector<Mesh> meshes;
+std::map <string, vector<Mesh>> meshMap;
+std::map <string, vector<Mesh>> initialMeshMap;
 
-
-bool ParseObj(const string& fileName)
+MeshData ParseObj(const string& fileName)
 {
-    fstream myfile;
+	fstream myfile;
+	MeshData meshData;
+	// Open the input 
+	myfile.open(fileName.c_str(), std::ios::in);
 
-    // Open the input 
-    myfile.open(fileName.c_str(), std::ios::in);
+	if (myfile.is_open())
+	{
+		string curLine;
 
-    if (myfile.is_open())
-    {
-        string curLine;
+		while (getline(myfile, curLine))
+		{
+			stringstream str(curLine);
+			GLfloat c1, c2, c3;
+			GLuint index[9];
+			string tmp;
 
-        while (getline(myfile, curLine))
-        {
-            stringstream str(curLine);
-            GLfloat c1, c2, c3;
-            GLuint index[9];
-            string tmp;
-
-            if (curLine.length() >= 2)
-            {
-                if (curLine[0] == '#') // comment
-                {
-                    continue;
-                }
-                else if (curLine[0] == 'v')
-                {
-                    if (curLine[1] == 't') // texture
-                    {
-                        str >> tmp; // consume "vt"
-                        str >> c1 >> c2;
-                        gTextures.push_back(Texture(c1, c2));
-                    }
-                    else if (curLine[1] == 'n') // normal
-                    {
-                        str >> tmp; // consume "vn"
-                        str >> c1 >> c2 >> c3;
-                        gNormals.push_back(Normal(c1, c2, c3));
-                    }
-                    else // vertex
-                    {
-                        str >> tmp; // consume "v"
-                        str >> c1 >> c2 >> c3;
-                        gVertices.push_back(Vertex(c1, c2, c3));
-                    }
-                }
-                else if (curLine[0] == 'f') // face
-                {
-                    str >> tmp; // consume "f"
+			if (curLine.length() >= 2)
+			{
+				if (curLine[0] == 'v')
+				{
+					if (curLine[1] == 't') // texture
+					{
+						str >> tmp; // consume "vt"
+						str >> c1 >> c2;
+						meshData.textures.push_back(Texture(c1, c2));
+					}
+					else if (curLine[1] == 'n') // normal
+					{
+						str >> tmp; // consume "vn"
+						str >> c1 >> c2 >> c3;
+						meshData.normals.push_back(Normal(c1, c2, c3));
+					}
+					else // vertex
+					{
+						str >> tmp; // consume "v"
+						str >> c1 >> c2 >> c3;
+						meshData.vertices.push_back(Vertex(c1, c2, c3));
+					}
+				}
+				else if (curLine[0] == 'f') // face
+				{
+					str >> tmp; // consume "f"
 					char c;
-					int vIndex[3],  nIndex[3], tIndex[3];
+					int vIndex[3], nIndex[3], tIndex[3];
 					str >> vIndex[0]; str >> c >> c; // consume "//"
-					str >> nIndex[0]; 
+					str >> nIndex[0];
 					str >> vIndex[1]; str >> c >> c; // consume "//"
-					str >> nIndex[1]; 
+					str >> nIndex[1];
 					str >> vIndex[2]; str >> c >> c; // consume "//"
-					str >> nIndex[2]; 
+					str >> nIndex[2];
 
 					assert(vIndex[0] == nIndex[0] &&
-						   vIndex[1] == nIndex[1] &&
-						   vIndex[2] == nIndex[2]); // a limitation for now
+						vIndex[1] == nIndex[1] &&
+						vIndex[2] == nIndex[2]); // a limitation for now
 
 					// make indices start from 0
 					for (int c = 0; c < 3; ++c)
@@ -149,71 +207,34 @@ bool ParseObj(const string& fileName)
 						tIndex[c] -= 1;
 					}
 
-                    gFaces.push_back(Face(vIndex, tIndex, nIndex));
-                }
-                else
-                {
-                    cout << "Ignoring unidentified line in obj file: " << curLine << endl;
-                }
-            }
-
-            //data += curLine;
-            if (!myfile.eof())
-            {
-                //data += "\n";
-            }
-        }
-
-        myfile.close();
-    }
-    else
-    {
-        return false;
-    }
-
-	/*
-	for (int i = 0; i < gVertices.size(); ++i)
-	{
-		Vector3 n;
-
-		for (int j = 0; j < gFaces.size(); ++j)
-		{
-			for (int k = 0; k < 3; ++k)
-			{
-				if (gFaces[j].vIndex[k] == i)
-				{
-					// face j contains vertex i
-					Vector3 a(gVertices[gFaces[j].vIndex[0]].x, 
-							  gVertices[gFaces[j].vIndex[0]].y,
-							  gVertices[gFaces[j].vIndex[0]].z);
-
-					Vector3 b(gVertices[gFaces[j].vIndex[1]].x, 
-							  gVertices[gFaces[j].vIndex[1]].y,
-							  gVertices[gFaces[j].vIndex[1]].z);
-
-					Vector3 c(gVertices[gFaces[j].vIndex[2]].x, 
-							  gVertices[gFaces[j].vIndex[2]].y,
-							  gVertices[gFaces[j].vIndex[2]].z);
-
-					Vector3 ab = b - a;
-					Vector3 ac = c - a;
-					Vector3 normalFromThisFace = (ab.cross(ac)).getNormalized();
-					n += normalFromThisFace;
+					meshData.faces.push_back(Face(vIndex, tIndex, nIndex));
 				}
+				else
+				{
+					cout << "Ignoring unidentified line in obj file: " << curLine << endl;
+				}
+			}
 
+			//data += curLine;
+			if (!myfile.eof())
+			{
+				//data += "\n";
 			}
 		}
 
-		n.normalize();
-
-		gNormals.push_back(Normal(n.x, n.y, n.z));
+		myfile.close();
 	}
-	*/
+	else
+	{
+		cout << "Cannot find file name: " + fileName << endl;
+		exit(-1);
+	}
 
-	assert(gVertices.size() == gNormals.size());
 
-    return true;
+	return meshData;
 }
+
+
 
 bool ReadDataFromFile(
     const string& fileName, ///< [in]  Name of the shader file
@@ -331,80 +352,68 @@ void initShaders()
     glUniform1f(gIntensityLoc, gIntensity);
 }
 
-void initVBO()
-{
+VBOData initVBO(const MeshData& mesh) {
+    VBOData vboData;
+
+    // Create and bind the VAO
+    glGenVertexArrays(1, &vboData.vao);
+    assert(vboData.vao > 0);
+    glBindVertexArray(vboData.vao);
+    cout << "vao = " << vboData.vao << endl;
+
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     assert(glGetError() == GL_NONE);
 
-    glGenBuffers(1, &gVertexAttribBuffer);
-    glGenBuffers(1, &gIndexBuffer);
+    // Create vertex buffer
+    glGenBuffers(1, &vboData.vertexBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, vboData.vertexBuffer);
 
-    assert(gVertexAttribBuffer > 0 && gIndexBuffer > 0);
+    int vertexDataSizeInBytes = mesh.vertices.size() * 3 * sizeof(GLfloat);
+    int normalDataSizeInBytes = mesh.normals.size() * 3 * sizeof(GLfloat);
+    GLfloat* vertexData = new GLfloat[mesh.vertices.size() * 3];
+    GLfloat* normalData = new GLfloat[mesh.normals.size() * 3];
 
-    glBindBuffer(GL_ARRAY_BUFFER, gVertexAttribBuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIndexBuffer);
-
-    gVertexDataSizeInBytes = gVertices.size() * 3 * sizeof(GLfloat);
-    gNormalDataSizeInBytes = gNormals.size() * 3 * sizeof(GLfloat);
-    int indexDataSizeInBytes = gFaces.size() * 3 * sizeof(GLuint);
-    GLfloat* vertexData = new GLfloat [gVertices.size() * 3];
-    GLfloat* normalData = new GLfloat [gNormals.size() * 3];
-    GLuint* indexData = new GLuint [gFaces.size() * 3];
-
-    float minX = 1e6, maxX = -1e6;
-    float minY = 1e6, maxY = -1e6;
-    float minZ = 1e6, maxZ = -1e6;
-
-    for (int i = 0; i < gVertices.size(); ++i)
-    {
-        vertexData[3*i] = gVertices[i].x;
-        vertexData[3*i+1] = gVertices[i].y;
-        vertexData[3*i+2] = gVertices[i].z;
-
-        minX = std::min(minX, gVertices[i].x);
-        maxX = std::max(maxX, gVertices[i].x);
-        minY = std::min(minY, gVertices[i].y);
-        maxY = std::max(maxY, gVertices[i].y);
-        minZ = std::min(minZ, gVertices[i].z);
-        maxZ = std::max(maxZ, gVertices[i].z);
+    // Fill vertex and normal data
+    for (int i = 0; i < mesh.vertices.size(); ++i) {
+        vertexData[3 * i] = mesh.vertices[i].x;
+        vertexData[3 * i + 1] = mesh.vertices[i].y;
+        vertexData[3 * i + 2] = mesh.vertices[i].z;
+    }
+    for (int i = 0; i < mesh.normals.size(); ++i) {
+        normalData[3 * i] = mesh.normals[i].x;
+        normalData[3 * i + 1] = mesh.normals[i].y;
+        normalData[3 * i + 2] = mesh.normals[i].z;
     }
 
-    std::cout << "minX = " << minX << std::endl;
-    std::cout << "maxX = " << maxX << std::endl;
-    std::cout << "minY = " << minY << std::endl;
-    std::cout << "maxY = " << maxY << std::endl;
-    std::cout << "minZ = " << minZ << std::endl;
-    std::cout << "maxZ = " << maxZ << std::endl;
+    glBufferData(GL_ARRAY_BUFFER, vertexDataSizeInBytes + normalDataSizeInBytes, 0, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, vertexDataSizeInBytes, vertexData);
+    glBufferSubData(GL_ARRAY_BUFFER, vertexDataSizeInBytes, normalDataSizeInBytes, normalData);
 
-    for (int i = 0; i < gNormals.size(); ++i)
-    {
-        normalData[3*i] = gNormals[i].x;
-        normalData[3*i+1] = gNormals[i].y;
-        normalData[3*i+2] = gNormals[i].z;
+    // Create index buffer
+    glGenBuffers(1, &vboData.indexBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vboData.indexBuffer);
+
+    int indexDataSizeInBytes = mesh.faces.size() * 3 * sizeof(GLuint);
+    GLuint* indexData = new GLuint[mesh.faces.size() * 3];
+
+    for (int i = 0; i < mesh.faces.size(); ++i) {
+        indexData[3 * i] = mesh.faces[i].vIndex[0];
+        indexData[3 * i + 1] = mesh.faces[i].vIndex[1];
+        indexData[3 * i + 2] = mesh.faces[i].vIndex[2];
     }
-
-    for (int i = 0; i < gFaces.size(); ++i)
-    {
-        indexData[3*i] = gFaces[i].vIndex[0];
-        indexData[3*i+1] = gFaces[i].vIndex[1];
-        indexData[3*i+2] = gFaces[i].vIndex[2];
-    }
-
-
-    glBufferData(GL_ARRAY_BUFFER, gVertexDataSizeInBytes + gNormalDataSizeInBytes, 0, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, gVertexDataSizeInBytes, vertexData);
-    glBufferSubData(GL_ARRAY_BUFFER, gVertexDataSizeInBytes, gNormalDataSizeInBytes, normalData);
+	vboData.indexCount = mesh.faces.size() * 3;
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexDataSizeInBytes, indexData, GL_STATIC_DRAW);
 
-    // done copying; can free now
+    // Free CPU memory
     delete[] vertexData;
     delete[] normalData;
     delete[] indexData;
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(gVertexDataSizeInBytes));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(vertexDataSizeInBytes));
 
+    return vboData;
 }
 
 void initFonts(int windowWidth, int windowHeight)
@@ -504,7 +513,7 @@ void init()
     glEnable(GL_DEPTH_TEST);
     initShaders();
     initFonts(gWidth, gHeight);
-    initVBO();
+    //initVBO();
 }
 
 void drawModel()
@@ -575,47 +584,11 @@ void display()
     glClearStencil(0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-	static float angle = 0;
-
-    glUseProgram(gProgram[0]);
-	//glLoadIdentity();
-	//glTranslatef(-2, 0, -10);
-	//glRotatef(angle, 0, 1, 0);
-
-    glm::mat4 T = glm::translate(glm::mat4(1.f), glm::vec3(-2.f, 0.f, -10.f));
-    glm::mat4 R = glm::rotate(glm::mat4(1.f), glm::radians(angle), glm::vec3(0, 1, 0));
-    glm::mat4 modelMat = T * R;
-    glm::mat4 modelMatInv = glm::transpose(glm::inverse(modelMat));
-    glm::mat4 perspMat = glm::perspective(glm::radians(45.0f), 1.f, 1.0f, 100.0f);
-
-    glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMat"), 1, GL_FALSE, glm::value_ptr(modelMat));
-    glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "modelingMatInvTr"), 1, GL_FALSE, glm::value_ptr(modelMatInv));
-    glUniformMatrix4fv(glGetUniformLocation(gProgram[0], "perspectiveMat"), 1, GL_FALSE, glm::value_ptr(perspMat));
-
-    drawModel();
-
-    glUseProgram(gProgram[1]);
-	//glLoadIdentity();
-	//glTranslatef(2, 0, -10);
-	//glRotatef(-angle, 0, 1, 0);
-
-    T = glm::translate(glm::mat4(1.f), glm::vec3(2.f, 0.f, -10.f));
-    R = glm::rotate(glm::mat4(1.f), glm::radians(-angle), glm::vec3(0, 1, 0));
-    modelMat = T * R;
-    modelMatInv = glm::transpose(glm::inverse(modelMat));
-
-    glUniformMatrix4fv(glGetUniformLocation(gProgram[1], "modelingMat"), 1, GL_FALSE, glm::value_ptr(modelMat));
-    glUniformMatrix4fv(glGetUniformLocation(gProgram[1], "modelingMatInvTr"), 1, GL_FALSE, glm::value_ptr(modelMatInv));
-    glUniformMatrix4fv(glGetUniformLocation(gProgram[1], "perspectiveMat"), 1, GL_FALSE, glm::value_ptr(perspMat));
-
-    drawModel();
-    assert(glGetError() == GL_NO_ERROR);
 
     renderText("CENG 477 - 2022", 0, 0, 1, glm::vec3(0, 1, 1));
 
     assert(glGetError() == GL_NO_ERROR);
 
-	angle += 0.5;
 }
 
 void reshape(GLFWwindow* window, int w, int h)
