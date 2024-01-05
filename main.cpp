@@ -504,11 +504,83 @@ void initFonts(int windowWidth, int windowHeight)
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
+void initPlatform(){
+    MeshData meshdata = ParseObj("quad.obj");
+	Mesh quad;
+	quad.vboData = initVBO(meshdata);
+	float fovyRad = (float)(90.0 / 180.0) * M_PI;
+	int w = 1000, h = 800;
+	projectionMatrix = glm::perspective(fovyRad, w / (float)h, 1.0f, 100.0f);
+	quad.projectionMatrix = projectionMatrix;
+
+	for (int i = 0; i < 550; i++){ // length
+		for (int j = -12; j < 13; j++){ // width
+			glm::mat4 qmatT = glm::translate(glm::mat4(1.0), glm::vec3(float(j) * 0.3, -1.5f, 10.f - 0.3 *i));
+			glm::mat4 qmatS = glm::scale(glm::mat4(1.0), glm::vec3(0.3f, 0.3f, 0.3f));
+			quad.modelingMatrix = qmatT * qmatS;
+			quad.zCoordinate = 10.f - 0.3 *i;
+			quad.xCoordinate = float(j) * 0.3;
+			quad.shaderProgramIndex = 0;
+			meshMap["platform"].push_back(quad);
+
+		}
+	}
+}			
+
+void initBunny(){
+	MeshData meshdata = ParseObj("bunny.obj");
+	Mesh bunny;
+	bunny.vboData = initVBO(meshdata);
+
+	float rotationAngle = -90.0f;
+	glm::mat4 bmatT = glm::translate(glm::mat4(1.0), glm::vec3(0.f, -1.3f, -1.8f));
+	glm::mat4 bmatS = glm::scale(glm::mat4(1.0), glm::vec3(0.3, 0.3, 0.3));
+	glm::mat4 rotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(rotationAngle), glm::vec3(0.0f, 1.0f, 0.0f)); // Rotate to face the
+	bunny.modelingMatrix =  bmatT * rotationMatrix * bmatS;
+	bunny.shaderProgramIndex = 1;
+	meshMap["bunny"].push_back(bunny);
+}
+
+void initCubes(){
+	MeshData meshdata = ParseObj("cube.obj");
+	Mesh cube;
+	cube.vboData = initVBO(meshdata);
+	cube.shaderProgramIndex = 2;
+
+	glm::mat4 scaleMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(0.3, 0.8, 0.3));
+	glm::mat4 translationMatrixCube0 = glm::translate(glm::mat4(1.0f), glm::vec3(cubeXPositions[0], -1.0, cubeZPosition)); // Translate to the starting position
+	glm::mat4 translationMatrixCube1 = glm::translate(glm::mat4(1.0f), glm::vec3(cubeXPositions[1], -1.0, cubeZPosition)); // Translate to the starting position
+	glm::mat4 translationMatrixCube2 = glm::translate(glm::mat4(1.0f), glm::vec3(cubeXPositions[2], -1.0, cubeZPosition)); // Translate to the starting position
+
+
+	cube.modelingMatrix = translationMatrixCube0 * scaleMatrix;
+	cube.color = colorArray[0];
+	meshMap["cube"].push_back(cube);
+	cube.modelingMatrix = translationMatrixCube1 * scaleMatrix;
+	cube.color = colorArray[1];
+	meshMap["cube"].push_back(cube);
+	cube.modelingMatrix = translationMatrixCube2 * scaleMatrix;
+	cube.color = colorArray[2];
+	meshMap["cube"].push_back(cube);
+
+}
 
 void init() 
 {
-	//ParseObj("armadillo.obj");
-	ParseObj("bunny.obj");
+	vector<Mesh> platformMeshes;
+	vector<Mesh> bunnyMeshes;
+	vector<Mesh> cubeMeshes;
+	
+	meshMap["platform"] = platformMeshes;
+	meshMap["bunny"] = bunnyMeshes;
+	meshMap["cube"] = cubeMeshes;
+
+
+    initBunny();
+	initCubes();
+	initPlatform();
+
+    initialMeshMap = meshMap;
 
     glEnable(GL_DEPTH_TEST);
     initShaders();
@@ -575,6 +647,7 @@ void renderText(const std::string& text, GLfloat x, GLfloat y, GLfloat scale, gl
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
+
 
 
 void display()
