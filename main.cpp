@@ -22,6 +22,8 @@
 
 using namespace std;
 
+int activeProgramIndex = 2;
+
 GLuint gProgram[4];
 GLint gIntensityLoc;
 float gIntensity = 1000;
@@ -351,6 +353,14 @@ void initShaders()
     gIntensityLoc = glGetUniformLocation(gProgram[0], "intensity");
     cout << "gIntensityLoc = " << gIntensityLoc << endl;
     glUniform1f(gIntensityLoc, gIntensity);
+
+    for (int i = 0; i < 4; ++i)
+	{
+		modelingMatrixLoc[i] = glGetUniformLocation(gProgram[i], "modelingMatrix");
+		viewingMatrixLoc[i] = glGetUniformLocation(gProgram[i], "viewingMatrix");
+		projectionMatrixLoc[i] = glGetUniformLocation(gProgram[i], "projectionMatrix");
+		eyePosLoc[i] = glGetUniformLocation(gProgram[i], "eyePos");
+	}
 }
 
 VBOData initVBO(const MeshData& mesh) {
@@ -546,7 +556,7 @@ void initCubes(){
 	MeshData meshdata = ParseObj("cube.obj");
 	Mesh cube;
 	cube.vboData = initVBO(meshdata);
-	cube.shaderProgramIndex = 2;
+	cube.shaderProgramIndex = 3;
 
 	glm::mat4 scaleMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(0.3, 0.8, 0.3));
 	glm::mat4 translationMatrixCube0 = glm::translate(glm::mat4(1.0f), glm::vec3(cubeXPositions[0], -1.0, cubeZPosition)); // Translate to the starting position
@@ -721,7 +731,93 @@ void checkCollision(){
 
 void drawModel()
 {
-	
+	for (const Mesh& mesh: meshMap["bunny"]){
+		if (mesh.modelingMatrix != glm::mat4(1.0f)) {
+			modelingMatrix = mesh.modelingMatrix;
+		}
+
+		if (mesh.viewingMatrix != glm::mat4(1.0f)) {
+			viewingMatrix = mesh.viewingMatrix;
+		}
+
+		if (mesh.projectionMatrix != glm::mat4(1.0f)) {
+			projectionMatrix = mesh.projectionMatrix;
+		}
+
+		activeProgramIndex = mesh.shaderProgramIndex;
+
+		glUseProgram(gProgram[activeProgramIndex]);
+
+		glUniformMatrix4fv(projectionMatrixLoc[activeProgramIndex], 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(viewingMatrixLoc[activeProgramIndex], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
+		glUniformMatrix4fv(modelingMatrixLoc[activeProgramIndex], 1, GL_FALSE, glm::value_ptr(modelingMatrix));
+		glUniform3fv(eyePosLoc[activeProgramIndex], 1, glm::value_ptr(eyePos));	
+                assert(glGetError() == GL_NO_ERROR);
+
+		glBindVertexArray(mesh.vboData.vao);
+		glDrawElements(GL_TRIANGLES, mesh.vboData.indexCount, GL_UNSIGNED_INT, 0);	
+	}
+
+
+	for (const Mesh& mesh: meshMap["cube"]){
+		if (mesh.modelingMatrix != glm::mat4(1.0f)) {
+			modelingMatrix = mesh.modelingMatrix;
+		}
+
+		if (mesh.viewingMatrix != glm::mat4(1.0f)) {
+			viewingMatrix = mesh.viewingMatrix;
+		}
+
+		if (mesh.projectionMatrix != glm::mat4(1.0f)) {
+			projectionMatrix = mesh.projectionMatrix;
+		}
+
+		activeProgramIndex = mesh.shaderProgramIndex;
+
+		glUseProgram(gProgram[activeProgramIndex]);
+		glUniformMatrix4fv(projectionMatrixLoc[activeProgramIndex], 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(viewingMatrixLoc[activeProgramIndex], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
+		glUniformMatrix4fv(modelingMatrixLoc[activeProgramIndex], 1, GL_FALSE, glm::value_ptr(modelingMatrix));
+		glUniform3fv(eyePosLoc[activeProgramIndex], 1, glm::value_ptr(eyePos));
+
+		GLint objectColorLocation = glGetUniformLocation(gProgram[2], "objectColor");
+		glm::vec3 redColor = glm::vec3(1.0f, 0.0f, 0.0f); // RGB for red
+		glm::vec3 yellowColor = glm::vec3(1.0f, 1.0f, 0.0f); // RGB for yellow
+
+		if (mesh.color == 0){
+			glUniform3fv(objectColorLocation, 1, glm::value_ptr(redColor));
+		}else if (mesh.color == 1){
+			glUniform3fv(objectColorLocation, 1, glm::value_ptr(yellowColor));
+		}
+
+		glBindVertexArray(mesh.vboData.vao);
+		glDrawElements(GL_TRIANGLES, mesh.vboData.indexCount, GL_UNSIGNED_INT, 0);	
+	}
+
+	for (const Mesh& mesh: meshMap["platform"]){
+		if (mesh.modelingMatrix != glm::mat4(1.0f)) {
+			modelingMatrix = mesh.modelingMatrix;
+		}
+
+		if (mesh.viewingMatrix != glm::mat4(1.0f)) {
+			viewingMatrix = mesh.viewingMatrix;
+		}
+
+		if (mesh.projectionMatrix != glm::mat4(1.0f)) {
+			projectionMatrix = mesh.projectionMatrix;
+		}
+
+		activeProgramIndex = mesh.shaderProgramIndex;
+
+		glUseProgram(gProgram[activeProgramIndex]);
+		glUniformMatrix4fv(projectionMatrixLoc[activeProgramIndex], 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(viewingMatrixLoc[activeProgramIndex], 1, GL_FALSE, glm::value_ptr(viewingMatrix));
+		glUniformMatrix4fv(modelingMatrixLoc[activeProgramIndex], 1, GL_FALSE, glm::value_ptr(modelingMatrix));
+		glUniform3fv(eyePosLoc[activeProgramIndex], 1, glm::value_ptr(eyePos));
+
+		glBindVertexArray(mesh.vboData.vao);
+		glDrawElements(GL_TRIANGLES, mesh.vboData.indexCount, GL_UNSIGNED_INT, 0);	
+	}
 }
 
 void renderText(const std::string& text, GLfloat x, GLfloat y, GLfloat scale, glm::vec3 color)
@@ -784,7 +880,7 @@ void display()
 
 
     renderText("CENG 477 - 2022", 0, 0, 1, glm::vec3(0, 1, 1));
-
+    drawModel();
     assert(glGetError() == GL_NO_ERROR);
 
 }
