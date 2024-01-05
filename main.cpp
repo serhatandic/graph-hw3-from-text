@@ -963,7 +963,7 @@ void keyboard(GLFWwindow* window, int key, int scancode, int action, int mods)
 	else if (key == GLFW_KEY_A && action == GLFW_RELEASE){
 		leftMovement = false;
 	}
-	else if (key == GLFW_KEY_R && action == GLFW_PRESS){
+	else if (key == GLFW_KEY_R && (action == GLFW_PRESS || action == GLFW_REPEAT)){
 		resetGame();
         bunnyFainted = false;
 	}
