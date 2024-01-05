@@ -49,7 +49,7 @@ float cubeDepth = 0.55f; // The cube's depth
 
 // bunny globals
 float bunnyZCoord = -1.8f;
-float bunnyForwardSpeed = -0.1f; // The bunny's forward speed
+float bunnyForwardSpeed = -0.2f; // The bunny's forward speed
 float bunnyYCoord = -1.3f; // The bunny's Y coordinate
 float bunnyXCoord = 0.0f; // The bunny's X coordinate
 float hopHeight = 0.01f; // Maximum height of the bunny's hop
@@ -58,6 +58,8 @@ float bunnyReplacement = 0.0f; // The bunny's replacement value
 static float bunnyRotationAngle = 0;
 bool shouldRotate = false;
 bool bunnyFainted = false;
+bool rightMovement = false;
+bool leftMovement = false;
 
 float cameraZPosition = 0.0f; // The camera's Z position
 bool randomizeColor = false;
@@ -612,7 +614,7 @@ void bunnyRotateX(){
 void resetGame(){
 	// reset bunny position
 	bunnyZCoord = -1.8f;
-	bunnyForwardSpeed = -0.1f; // The bunny's forward speed
+	bunnyForwardSpeed = -0.2f; // The bunny's forward speed
 	bunnyYCoord = -1.3f; // The bunny's Y coordinate
 	bunnyXCoord = 0.0f; // The bunny's X coordinate
 	hopHeight = 0.01f; // Maximum height of the bunny's hop
@@ -631,11 +633,13 @@ void resetGame(){
     randomizeColor = true;
     scoreTextColor = glm::vec3(1.0f, 1.0f, 0.0f);
     score = 0;
+	leftMovement = false;
+	rightMovement = false;
 }
 
 void drawPlatform(){
 	vector<Mesh> quads = meshMap["platform"];
-	int numElementsToRemove = 25;
+	int numElementsToRemove = 25 * bunnyForwardSpeed * -1 / 0.3f;
 	for (int i = 0; i < numElementsToRemove; i++){
 		// update modeling matrix to move by 0.3 in Z at every call
 		int zCoord = quads[i].zCoordinate;
@@ -672,9 +676,9 @@ void drawBunny(){
         bunnyYCoord = -1.3f; // Reset to ground level to avoid sinking below the ground
     }
 	if (direction == -1){
-		bunnyYCoord += bunnyForwardSpeed * 0.4;
+		bunnyYCoord += bunnyForwardSpeed * 0.2;
 	}else if (direction == 1){
-		bunnyYCoord -= bunnyForwardSpeed * 0.4;
+		bunnyYCoord -= bunnyForwardSpeed * 0.2;
 	}
 	
 	glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, cameraZPosition);
@@ -701,7 +705,7 @@ void checkCollision(){
 	for (int i = 0; i < 3; i++) {
 		float xPosDiff = cubeXPositions[i] - bunnyXCoord;
 		float zPosDiff = bunnyZCoord - cubeZPosition;
-		if (xPosDiff <= 0.25f && xPosDiff >= -0.25f  && zPosDiff < 0.8f && zPosDiff > -0.8f) {
+		if (xPosDiff <= 0.55f && xPosDiff >= -0.55f  && zPosDiff < 0.8f && zPosDiff > -0.8f) {
 			if (colorArray[i] == 0){
 				// red collision
 				// if collided, rotate bunny sideways
@@ -724,7 +728,7 @@ void checkCollision(){
 			}
 
 		}else if (zPosDiff < -0.8f){
-			cubeZPosition -= 16.4;
+			cubeZPosition -= 25.f;
 			randomizeColor = true;
 		}
 	}
@@ -902,8 +906,15 @@ void display()
 		std::random_shuffle(&colorArray[0], &colorArray[3]);
 	}
 	randomizeColor = false;
-
-	if (meshMap["platform"][0].zCoordinate - bunnyZCoord > 3){
+	if (rightMovement && bunnyXCoord < 2.5f && !bunnyFainted){
+		leftMovement = false;
+		bunnyXCoord -= bunnyForwardSpeed / 4;
+	}
+	if (leftMovement && bunnyXCoord > -2.5f && !bunnyFainted){
+		rightMovement = false;
+		bunnyXCoord += bunnyForwardSpeed / 4;
+	}
+	if (meshMap["platform"][0].zCoordinate - bunnyZCoord > 1){
 		drawPlatform();
 	}
 	drawCubes();
@@ -940,19 +951,19 @@ void keyboard(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
 	}
-	else if (key == GLFW_KEY_D && (action == GLFW_PRESS || action == GLFW_REPEAT) && bunnyXCoord < 2.5f && !bunnyFainted){
-		bunnyXCoord += 0.3f;
+	else if (key == GLFW_KEY_D && (action == GLFW_PRESS || action == GLFW_REPEAT)){
+		rightMovement = true;
 	}
-	else if (key == GLFW_KEY_A && (action == GLFW_PRESS || action == GLFW_REPEAT) && bunnyXCoord > -2.5f && !bunnyFainted){
-		bunnyXCoord -= 0.3f;
+	else if (key == GLFW_KEY_D && action == GLFW_RELEASE){
+		rightMovement = false;
 	}
-	else if (key == GLFW_KEY_W && action == GLFW_PRESS)
-	{
-		bunnyForwardSpeed -= 0.01;
+	else if (key == GLFW_KEY_A && (action == GLFW_PRESS || action == GLFW_REPEAT)){
+		leftMovement = true;
 	}
-	else if (key == GLFW_KEY_E && action == GLFW_PRESS){
-		bunnyForwardSpeed += 0.01;
-	}else if (key == GLFW_KEY_R && action == GLFW_PRESS){
+	else if (key == GLFW_KEY_A && action == GLFW_RELEASE){
+		leftMovement = false;
+	}
+	else if (key == GLFW_KEY_R && action == GLFW_PRESS){
 		resetGame();
         bunnyFainted = false;
 	}
